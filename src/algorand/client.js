@@ -41,9 +41,10 @@ export class AlgorandClient {
     let txn;
     if (assetId === 0) {
       // ALGO 原生支付
+      // sender, receiver, amount, closeRemainderTo, suggestedParams, note, lease, rekeyTo, 
       txn = algosdk.makePaymentTxnWithSuggestedParamsFromObject({
-        from: senderAddr,
-        to: receiver,
+        sender: senderAddr,
+        receiver,
         amount,
         note: noteBytes,
         suggestedParams,
@@ -51,8 +52,8 @@ export class AlgorandClient {
     } else {
       // ASA 资产转账
       txn = algosdk.makeAssetTransferTxnWithSuggestedParamsFromObject({
-        from: senderAddr,
-        to: receiver,
+        sender: senderAddr,
+        receiver,
         amount,
         assetIndex: assetId,
         note: noteBytes,
@@ -61,11 +62,11 @@ export class AlgorandClient {
     }
 
     const signed = txn.signTxn(senderSk);
-    const { txId } = await this.algod.sendRawTransaction(signed).do();
+    const res = await this.algod.sendRawTransaction(signed).do();
 
     // 可选：等待确认
-    await this.waitForConfirmation(txId, 4);
-    return txId;
+    await this.waitForConfirmation(res.txid, 4);
+    return res.txid;
   }
 
   /**
@@ -74,16 +75,43 @@ export class AlgorandClient {
    * @param {number} [roundsToWait]
    */
   async waitForConfirmation(txid, roundsToWait = 4) {
-    let lastRound = (await this.algod.status().do())["last-round"];
-    const startRound = lastRound;
-    while (lastRound < startRound + roundsToWait) {
-      const pendingInfo = await this.algod.pendingTransactionInformation(txid).do();
-      if (pendingInfo["confirmed-round"] && pendingInfo["confirmed-round"] > 0) {
-        return pendingInfo;
-      }
-      lastRound++;
-      await this.algod.statusAfterBlock(lastRound).do();
+    // SDK may return BigInt for lastRound; keep arithmetic in BigInt and
+    // only convert to Number when calling SDK methods.
+    let lastRound = (await this.algod.status().do()).lastRound;
+    if (typeof lastRound === "number") {
+      lastRound = BigInt(lastRound);
     }
+
+    console.log("Waiting for confirmation...", lastRound);
+
+    const waitRounds = BigInt(roundsToWait);
+    const maxRound = lastRound + waitRounds;
+
+    while (lastRound < maxRound) {
+      console.log("Waiting for confirmation...", lastRound, txid);
+      try{
+        const pendingInfo = await this.algod.pendingTransactionInformation(txid).do();
+        // console.log("Pending info:", pendingInfo);
+
+        const confirmedRound = pendingInfo.confirmedRound;
+        if (
+            confirmedRound !== undefined &&
+            confirmedRound !== null &&
+            ((typeof confirmedRound === "bigint" && confirmedRound > 0n) ||
+            (typeof confirmedRound === "number" && confirmedRound > 0))
+        ) {
+            return pendingInfo;
+        }
+
+        lastRound += 1n;
+        await this.algod.statusAfterBlock(Number(lastRound)).do();
+      }catch(e){
+        // console.log(e)
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        lastRound += 1n;
+      }
+    }
+
     throw new Error("Transaction not confirmed after wait");
   }
 

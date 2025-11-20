@@ -25,7 +25,7 @@ const cfg = new AlgorandConfig({
 const algoClient = new AlgorandClient(cfg);
 
 // TODO: 替换成你的 Seller 地址（要在上面节点上存在且有余额）
-const SELLER_ADDRESS = "LMM5UCI5W5DNFX52V2KRSPKSW2YWCMWDXKCFUGYEVTBYD7THBTEBIFNNVE";
+const SELLER_ADDRESS = process.env.SELLER_ADDRESS;
 
 const pricing = new SimplePricing({
   sellerAddress: SELLER_ADDRESS,
