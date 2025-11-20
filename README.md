@@ -30,7 +30,7 @@ import {
   AlgorandConfig,
   AlgorandClient,
   Algox402Buyer,
-} from "../../src/index.js";
+} from "algox402-algorand-sdk";
 import dotenv from 'dotenv'
 dotenv.config()
 
@@ -83,7 +83,7 @@ import {
   SimplePricing,
   PaymentVerifier,
   createAlgox402Middleware,
-} from "../../src/index.js";
+} from "algox402-algorand-sdk";
 
 const app = express();
 app.use(express.json());
