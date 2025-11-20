@@ -1,0 +1,13 @@
+{
+  "name": "algox402-basic-express-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "server": "node server.js",
+    "buyer": "node buyer.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  }
+}
