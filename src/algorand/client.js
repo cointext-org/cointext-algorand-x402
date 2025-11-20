@@ -19,6 +19,7 @@ export class AlgorandClient {
       cfg.indexerServer,
       cfg.indexerPort
     );
+    console.log("AlgorandClient initialized", cfg);
   }
 
   /**
@@ -39,6 +40,13 @@ export class AlgorandClient {
     const noteBytes = note ? enc.encode(note) : undefined;
 
     let txn;
+    console.log({
+        sender: senderAddr,
+        receiver,
+        amount,
+        note: noteBytes,
+        suggestedParams,
+      })
     if (assetId === 0) {
       // ALGO 原生支付
       // sender, receiver, amount, closeRemainderTo, suggestedParams, note, lease, rekeyTo, 
@@ -65,7 +73,7 @@ export class AlgorandClient {
     const res = await this.algod.sendRawTransaction(signed).do();
 
     // 可选：等待确认
-    await this.waitForConfirmation(res.txid, 4);
+    await this.waitForConfirmation(res.txid, 8);
     return res.txid;
   }
 
@@ -81,6 +89,7 @@ export class AlgorandClient {
     if (typeof lastRound === "number") {
       lastRound = BigInt(lastRound);
     }
+    let currentRound = lastRound;
 
     console.log("Waiting for confirmation...", lastRound);
 
@@ -94,6 +103,7 @@ export class AlgorandClient {
         // console.log("Pending info:", pendingInfo);
 
         const confirmedRound = pendingInfo.confirmedRound;
+        console.log({confirmedRound})
         if (
             confirmedRound !== undefined &&
             confirmedRound !== null &&
@@ -123,5 +133,38 @@ export class AlgorandClient {
   async getTransaction(txid) {
     const res = await this.indexer.lookupTransactionByID(txid).do();
     return res;
+    /**
+     * 先尝试从 algod 获取（包含 pending 或刚确认的交易），再从 indexer 获取历史记录。
+     * 两边都查一遍，可以在不同同步状态下提高可靠性。
+     */
+    const result = {
+      algod: null,
+      indexer: null,
+    };
+
+    // 1. 从 algod 查询（pending 或最近的交易）
+    try {
+      const pendingTxn = await this.algod
+        .pendingTransactionInformation(txid)
+        .do();
+      result.algod = pendingTxn;
+    } catch (e) {
+      console.warn("Algod pendingTransactionInformation error", e?.message || e);
+    }
+
+    // 2. 从 indexer 查询（历史交易）
+    try {
+      const idxRes = await this.indexer.lookupTransactionByID(txid).do();
+      result.indexer = idxRes;
+    } catch (e) {
+      console.warn("Indexer lookupTransactionByID error", e?.message || e);
+    }
+
+    // 如果两边都查不到，抛出更明确的错误
+    if (!result.algod && !result.indexer) {
+      throw new Error("Transaction not found in algod pending pool or indexer");
+    }
+
+    return result;
   }
 }

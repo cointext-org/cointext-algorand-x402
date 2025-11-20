@@ -6,16 +6,18 @@ import {
   PaymentVerifier,
   createAlgox402Middleware,
 } from "../../src/index.js";
+import dotenv from 'dotenv'
+dotenv.config()
 
 const app = express();
 app.use(express.json());
 
 // TODO: 替换成你的 Algorand TestNet / LocalNet 节点配置
 const cfg = new AlgorandConfig({
-  algodToken: process.env.ALGOD_TOKEN || "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  algodToken: process.env.ALGOD_TOKEN || "",
   algodServer: process.env.ALGOD_SERVER || "http://localhost",
   algodPort: Number(process.env.ALGOD_PORT) || 4001,
-  indexerToken: process.env.INDEXER_TOKEN || "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  indexerToken: process.env.INDEXER_TOKEN || "",
   indexerServer: process.env.INDEXER_SERVER || "http://localhost",
   indexerPort: Number(process.env.INDEXER_PORT) || 8980,
   network: process.env.ALGORAND_NETWORK || "algorand-testnet",

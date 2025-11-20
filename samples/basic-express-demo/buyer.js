@@ -11,12 +11,12 @@ dotenv.config()
 const cfg = new AlgorandConfig({
   algodToken:
     process.env.ALGOD_TOKEN ||
-    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "",
   algodServer: process.env.ALGOD_SERVER || "http://localhost",
   algodPort: Number(process.env.ALGOD_PORT) || 4001,
   indexerToken:
     process.env.INDEXER_TOKEN ||
-    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "",
   indexerServer: process.env.INDEXER_SERVER || "http://localhost",
   indexerPort: Number(process.env.INDEXER_PORT) || 8980,
   network: process.env.ALGORAND_NETWORK || "algorand-testnet",
