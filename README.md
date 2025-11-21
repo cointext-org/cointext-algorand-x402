@@ -23,7 +23,9 @@ npm install algox402-algorand-sdk
 
 ## Usage
 
-### buyer
+### 1. Basic on-chain payment (existing demo)
+
+#### buyer
 ```js
 import algosdk from "algosdk";
 import {
@@ -74,7 +76,7 @@ main().catch((e) => {
 });
 ```
 
-### seller
+#### seller
 ```js
 import express from "express";
 import {
@@ -128,5 +130,126 @@ const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Seller server listening on http://localhost:${PORT}`);
   console.log(`Try: curl http://localhost:${PORT}/protected`);
+});
+```
+
+---
+
+### 2. AVM x402 with X-PAYMENT header (authorization-based)
+
+This mode uses an off-chain Algorand authorization (Ed25519 signature over a structured payload) carried in an `X-PAYMENT` header, and a facilitator service that verifies and settles payments on-chain before the seller releases the resource.
+
+#### Facilitator (Algorand)
+
+```js
+// src/avm402/server.js
+import { startAvmFacilitatorServer } from "./facilitator.js";
+
+startAvmFacilitatorServer(4100);
+```
+
+Required env vars:
+
+- `ALGOD_*` / `INDEXER_*` / `ALGORAND_NETWORK` / `ALGORAND_DEFAULT_ASSET_ID`
+- `FACILITATOR_MNEMONIC` – account that will actually send ALGO/ASA to the seller
+
+#### Seller middleware (Express)
+
+```js
+import express from "express";
+import dotenv from "dotenv";
+import { avmPaymentMiddleware } from "./src/avm402/seller/paymentMiddleware.js";
+
+dotenv.config();
+
+const app = express();
+app.use(express.json());
+
+const SELLER_ADDRESS = process.env.SELLER_ADDRESS; // Algorand address
+const FACILITATOR_BASE = process.env.AVM_FACILITATOR_URL || "http://localhost:4100";
+
+app.get(
+  "/protected-avm",
+  avmPaymentMiddleware(
+    SELLER_ADDRESS,
+    {
+      maxAmountRequired: "1000000", // 1000 microAlgo or ASA units
+      assetId: 0,                    // 0 = ALGO
+      maxTimeoutSeconds: 60,
+      network: "algorand-testnet",
+    },
+    { baseUrl: FACILITATOR_BASE },
+  ),
+  (req, res) => {
+    res.json({
+      ok: true,
+      mode: "avm-x402",
+      message: "Paid via AVM x402 (authorization + facilitator settle)",
+      timestamp: new Date().toISOString(),
+    });
+  },
+);
+
+app.listen(3000, () => {
+  console.log("Seller listening on http://localhost:3000");
+  console.log("Try: curl http://localhost:3000/protected-avm");
+});
+```
+
+#### Buyer (AVM x402)
+
+```js
+import algosdk from "algosdk";
+import fetch from "node-fetch";
+import dotenv from "dotenv";
+import {
+  generateAuthorization,
+  signAuthorization,
+  createXPaymentHeader,
+} from "./src/avm402/buyer/sdk.js";
+
+dotenv.config();
+
+const BUYER_MNEMONIC = process.env.BUYER_MNEMONIC;
+const buyerAccount = algosdk.mnemonicToSecretKey(BUYER_MNEMONIC);
+
+async function main() {
+  const resource = "http://localhost:3000/protected-avm";
+
+  // 1) First request, expect 402 with `accepts` description
+  let resp = await fetch(resource);
+  console.log("First request status:", resp.status);
+  const body = await resp.json();
+  console.log("402 body:", body);
+
+  const accept = body.accepts[0];
+
+  // 2) Build authorization + signature
+  const authorization = generateAuthorization(
+    buyerAccount.addr,
+    accept.payTo,
+    accept.assetId,
+    accept.maxAmountRequired,
+    accept.resource,
+  );
+  const signature = signAuthorization(buyerAccount, authorization);
+  const xPayment = createXPaymentHeader(authorization, signature, accept.network);
+
+  // 3) Second request with X-PAYMENT header
+  resp = await fetch(resource, {
+    headers: {
+      "X-PAYMENT": xPayment,
+    },
+  });
+
+  console.log("Second request status:", resp.status);
+  console.log("X-PAYMENT-RESPONSE:", resp.headers.get("x-payment-response"));
+  const data = await resp.json();
+  console.log("Body:", data);
+}
+
+main().catch((e) => {
+  console.error("AVM Buyer error:", e);
+  process.exit(1);
 });
 ```

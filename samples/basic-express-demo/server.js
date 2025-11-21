@@ -6,8 +6,9 @@ import {
   PaymentVerifier,
   createAlgox402Middleware,
 } from "../../src/index.js";
-import dotenv from 'dotenv'
-dotenv.config()
+import { avmPaymentMiddleware } from "../../src/avm402/seller/paymentMiddleware.js";
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 app.use(express.json());
@@ -39,7 +40,7 @@ const pricing = new SimplePricing({
 const verifier = new PaymentVerifier(algoClient);
 const paywall = createAlgox402Middleware({ pricing, verifier });
 
-// 一个需要付费的接口
+// 1) 一个直接基于链上支付 txid 的示例接口
 app.get("/protected", paywall, (req, res) => {
   res.json({
     ok: true,
@@ -48,8 +49,34 @@ app.get("/protected", paywall, (req, res) => {
   });
 });
 
+// 2) 使用 AVM x402 (X-PAYMENT + facilitator) 的示例接口
+const FACILITATOR_BASE = process.env.AVM_FACILITATOR_URL || "http://localhost:4100";
+
+app.get(
+  "/protected-avm",
+  avmPaymentMiddleware(
+    SELLER_ADDRESS,
+    {
+      maxAmountRequired: "1000000", // 0.001 ALGO
+      assetId: cfg.defaultAssetId,
+      maxTimeoutSeconds: 60,
+      network: cfg.network,
+    },
+    { baseUrl: FACILITATOR_BASE },
+  ),
+  (req, res) => {
+    res.json({
+      ok: true,
+      mode: "avm-x402",
+      message: "You have successfully paid via AVM x402 and accessed the resource!",
+      timestamp: new Date().toISOString(),
+    });
+  },
+);
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`Seller server listening on http://localhost:${PORT}`);
   console.log(`Try: curl http://localhost:${PORT}/protected`);
+  console.log(`Try: curl http://localhost:${PORT}/protected-avm`);
 });

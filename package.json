@@ -20,7 +20,8 @@
   "dependencies": {
     "algosdk": "^3.0.0",
     "express": "^4.19.0",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "ethers": "^6.10.0"
   },
   "devDependencies": {
     "@types/express": "^4.17.21"
