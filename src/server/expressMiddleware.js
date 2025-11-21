@@ -6,6 +6,8 @@
  *   app.get("/protected", paywall, handler);
  */
 
+import logger from "../logger.js";
+
 const NONCE_HEADER = "x-algox402-nonce";
 
 // 内部简单缓存 nonce -> PaymentRequest（生产可以换成 Redis 等）
@@ -74,7 +76,7 @@ export function createAlgox402Middleware({ pricing, verifier }) {
       // 放行后续 handler
       next();
     } catch (e) {
-      console.error("[algox402] middleware error:", e);
+      logger.error("[algox402] middleware error:", e);
       res.status(500).json({ error: "internal_error" });
     }
   };

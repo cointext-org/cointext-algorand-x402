@@ -1,4 +1,5 @@
 import algosdk from "algosdk";
+import logger from "../logger.js";
 
 /**
  * 对 Algorand JS SDK 的简单封装
@@ -19,7 +20,7 @@ export class AlgorandClient {
       cfg.indexerServer,
       cfg.indexerPort
     );
-    console.log("AlgorandClient initialized", cfg);
+    logger.info("AlgorandClient initialized", cfg);
   }
 
   /**
@@ -40,13 +41,14 @@ export class AlgorandClient {
     const noteBytes = note ? enc.encode(note) : undefined;
 
     let txn;
-    console.log({
-        sender: senderAddr,
-        receiver,
-        amount,
-        note: noteBytes,
-        suggestedParams,
-      })
+    logger.debug({
+      sender: senderAddr,
+      receiver,
+      amount,
+      note: noteBytes,
+      suggestedParams,
+    });
+
     if (assetId === 0) {
       // ALGO 原生支付
       // sender, receiver, amount, closeRemainderTo, suggestedParams, note, lease, rekeyTo, 
@@ -91,26 +93,27 @@ export class AlgorandClient {
     }
     let currentRound = lastRound;
 
-    console.log("Waiting for confirmation...", lastRound);
+    logger.info("Waiting for confirmation...", lastRound);
 
     const waitRounds = BigInt(roundsToWait);
     const maxRound = lastRound + waitRounds;
 
     while (lastRound < maxRound) {
-      console.log("Waiting for confirmation...", lastRound, txid);
-      try{
+      logger.info("Waiting for confirmation...", lastRound, txid);
+
+      try {
         const pendingInfo = await this.algod.pendingTransactionInformation(txid).do();
-        // console.log("Pending info:", pendingInfo);
 
         const confirmedRound = pendingInfo.confirmedRound;
-        console.log({confirmedRound})
+        logger.debug({ confirmedRound });
+
         if (
-            confirmedRound !== undefined &&
-            confirmedRound !== null &&
-            ((typeof confirmedRound === "bigint" && confirmedRound > 0n) ||
+          confirmedRound !== undefined &&
+          confirmedRound !== null &&
+          ((typeof confirmedRound === "bigint" && confirmedRound > 0n) ||
             (typeof confirmedRound === "number" && confirmedRound > 0))
         ) {
-            return pendingInfo;
+          return pendingInfo;
         }
 
         lastRound += 1n;
@@ -149,7 +152,7 @@ export class AlgorandClient {
         .do();
       result.algod = pendingTxn;
     } catch (e) {
-      console.warn("Algod pendingTransactionInformation error", e?.message || e);
+      logger.warn("Algod pendingTransactionInformation error", e?.message || e);
     }
 
     // 2. 从 indexer 查询（历史交易）
@@ -157,7 +160,7 @@ export class AlgorandClient {
       const idxRes = await this.indexer.lookupTransactionByID(txid).do();
       result.indexer = idxRes;
     } catch (e) {
-      console.warn("Indexer lookupTransactionByID error", e?.message || e);
+      logger.warn("Indexer lookupTransactionByID error", e?.message || e);
     }
 
     // 如果两边都查不到，抛出更明确的错误

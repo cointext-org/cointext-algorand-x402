@@ -1,4 +1,5 @@
 import fetch from "node-fetch";
+import logger from "../logger.js";
 
 /**
  * Buyer 客户端：自动完成
@@ -43,7 +44,7 @@ export class Algox402Buyer {
     if (!paymentReq) {
       throw new Error("402 response without payment object");
     }
-    console.log(paymentReq)
+    logger.info(paymentReq)
 
     // 支付
     const note = `algox402:${paymentReq.nonce}:${url}`;
